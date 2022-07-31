@@ -4,19 +4,10 @@
 #include "framework.h"
 #include "ShooterGL.h"
 
-#define MAX_LOADSTRING 100
-
-#define NEED_RESIZE TRUE
+#define NEED_RESIZE FALSE
 
 // Global Variables:
-HINSTANCE hInst;                                // current instance
-WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
-WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
-HDC hDC;                                        // paint space
-HWND hWnd;                                      // handle of window
-HGLRC hRC;                                      // resources for opengl
-POINT wnSize;                                   // size of window
-POINT posCursor;                                // position of cursor
+#include "Globals.h"
 
 // Forward declarations of functions included in this code module:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -25,8 +16,6 @@ LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 VOID                EnableOpenGL(HWND hwnd, HDC*, HGLRC*);
 VOID                DisableOpenGL(HWND, HDC, HGLRC);
-VOID                Render();
-VOID                DrawInterface();
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                      _In_opt_ HINSTANCE hPrevInstance,
@@ -130,6 +119,8 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    EnableOpenGL(hWnd, &hDC, &hRC);
    UpdateWindow(hWnd);
 
+   GameInit();
+
    return TRUE;
 }
 
@@ -171,6 +162,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         break;
     case WM_LBUTTONDOWN:
         {
+            PlayerShoot();
         }
         break;
     case WM_MOUSEMOVE: 
@@ -183,6 +175,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         {
             wnSize.x = LOWORD(lParam);
             wnSize.y = HIWORD(lParam);
+
+            WndResize(wnSize.x, wnSize.y);
 #if NEED_RESIZE == TRUE
             glViewport(0, 0, wnSize.x, wnSize.y);
             glLoadIdentity();
@@ -195,7 +189,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         {
             //PAINTSTRUCT ps;
             //HDC hdc = BeginPaint(hWnd, &ps);
+            GameMove();
             Render();
+            DrawInterface();
             SwapBuffers(hDC);
             Sleep(1);
             //EndPaint(hWnd, &ps);
@@ -270,39 +266,58 @@ VOID DisableOpenGL(HWND hwnd, HDC hDC, HGLRC hRC)
 
 VOID Render() 
 {
-    glClearColor(0, 0, 0, 0.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
+    if(showMask)
+        glClearColor(0.0, 0.0, 0.0, 0.0);
+    else 
+        glClearColor(0.6, 0.8, 1.0, 0.0);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    glRotatef(1, 0, 0, 1);
-
-    glBegin(GL_TRIANGLES);
+    glPushMatrix();
     {
-        glColor3f(1.0f, 0.0f, 0.0f);
-        glVertex2f(1.0f, -1.0f);
-        glColor3f(0.0f, 1.0f, 0.0f);
-        glVertex2f(0.0f, 0.0f);
-        glColor3f(0.0f, 0.0f, 1.0f);
-        glVertex2f(-1.0, -1.0);
-    }
-    glEnd();
+        CameraApply();
+        glEnableClientState(GL_VERTEX_ARRAY);
+        {
+            glVertexPointer(3, GL_FLOAT, 0, cubeVert);
+            if (!showMask) 
+            {
+                for (size_t i = 0; i < MAP_X; i++)
+                {
+                    for (size_t j = 0; j < MAP_Y; j++)
+                    {
+                        glPushMatrix();
+                        {
 
-    DrawInterface();
+                            glTranslatef(i, j, 0);
+                            glColor3f(map[i][j].clr.r, map[i][j].clr.g, map[i][j].clr.b);
+                            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, cubeInd);
+
+                        }
+                        glPopMatrix();
+                    }
+                }
+            }
+        }
+        glDisableClientState(GL_VERTEX_ARRAY);
+
+        EnemyDraw();
+    }
+    glPopMatrix();
 }
 
 VOID DrawInterface()
 {
-    glPushMatrix(); 
+    glPushMatrix();
     {
         glLoadIdentity();
         glOrtho(0, wnSize.x, wnSize.y, 0, -1, 1);
-
-        glPointSize(5);
+        glPointSize(10);
         glBegin(GL_POINTS);
         {
-            glColor3f(1.0f, 1.0f, 1.0f);
-            glVertex2f(posCursor.x, posCursor.y);
+            glColor3ub(255, 255, 255);
+            glVertex2f(wnSize.x / 2, wnSize.y / 2);
         }
         glEnd();
     }
     glPopMatrix();
 }
+
